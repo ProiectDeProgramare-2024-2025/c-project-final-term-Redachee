@@ -1,0 +1,407 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
+#define RESET   "\x1b[0m"
+
+#define MAX_ROOMS 10
+#define MAX_NAME 50
+#define DATA_FILE "rooms_data.txt"
+
+struct Room {
+    int number;
+    int isReserved;
+    char reservedBy[MAX_NAME];
+};
+
+void clearScreen();
+void showMainMenu();
+void viewRooms(struct Room rooms[], int numRooms);
+void makeReservation(struct Room rooms[], int numRooms);
+void cancelReservation(struct Room rooms[], int numRooms);
+void addNewRoom(struct Room rooms[], int *numRooms);
+void saveToFile(struct Room rooms[], int numRooms);
+void loadFromFile(struct Room rooms[], int *numRooms);
+void clearInputBuffer();
+int validateNumber(const char *input);
+int validateName(const char *name);
+void printError(const char *message);
+void printSuccess(const char *message);
+void printInfo(const char *message);
+void printHeader(const char *message);
+void sortRooms(struct Room rooms[], int numRooms);
+
+int validateNumber(const char *input) {
+    for(int i = 0; input[i] != '\0'; i++) {
+        if(!isdigit(input[i])) return 0;
+    }
+    return 1;
+}
+
+int validateName(const char *name) {
+    if(strlen(name) == 0) return 0;
+    for(int i = 0; name[i] != '\0'; i++) {
+        if(!isalpha(name[i]) && !isspace(name[i])) return 0;
+    }
+    return 1;
+}
+
+void sortRooms(struct Room rooms[], int numRooms) {
+    for(int i = 0; i < numRooms - 1; i++) {
+        for(int j = 0; j < numRooms - i - 1; j++) {
+            if(rooms[j].number > rooms[j + 1].number) {
+                struct Room temp = rooms[j];
+                rooms[j] = rooms[j + 1];
+                rooms[j + 1] = temp;
+            }
+        }
+    }
+}
+
+void printError(const char *message) {
+    printf(RED "Error: %s" RESET "\n", message);
+}
+
+void printSuccess(const char *message) {
+    printf(GREEN "%s" RESET "\n", message);
+}
+
+void printInfo(const char *message) {
+    printf(CYAN "%s" RESET "\n", message);
+}
+
+void printHeader(const char *message) {
+    printf(YELLOW "\n=== %s ===" RESET "\n", message);
+}
+
+void clearInputBuffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+void clearScreen() {
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
+}
+
+void showMainMenu() {
+    printHeader("Hotel Reservation System");
+    printf(CYAN "1. View available rooms\n");
+    printf("2. Make a reservation\n");
+    printf("3. Cancel a reservation\n");
+    printf("4. Add new room\n");
+    printf("5. Exit\n" RESET);
+    printf("\nEnter your choice (1-5): ");
+}
+
+void viewRooms(struct Room rooms[], int numRooms) {
+    if (numRooms == 0) {
+        printInfo("No rooms available in the system.");
+        return;
+    }
+
+    printHeader("Room Status");
+    printf("----------------------------------------\n");
+    for(int i = 0; i < numRooms; i++) {
+        printf("Room %d: ", rooms[i].number);
+        if(rooms[i].isReserved) {
+            printf(RED "Reserved by %s\n" RESET, rooms[i].reservedBy);
+        } else {
+            printf(GREEN "Available\n" RESET);
+        }
+    }
+    printf("----------------------------------------\n");
+}
+
+void makeReservation(struct Room rooms[], int numRooms) {
+    char input[MAX_NAME];
+    int roomNum;
+
+    viewRooms(rooms, numRooms);
+    printf("\nEnter room number: ");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        printError("Failed to read input");
+        return;
+    }
+    input[strcspn(input, "\n")] = 0;
+    
+    if (!validateNumber(input)) {
+        printError("Please enter a valid number");
+        return;
+    }
+    
+    roomNum = atoi(input);
+    
+    int roomIndex = -1;
+    for (int i = 0; i < numRooms; i++) {
+        if (rooms[i].number == roomNum) {
+            roomIndex = i;
+            break;
+        }
+    }
+    
+    if (roomIndex == -1) {
+        printError("Room number not found");
+        return;
+    }
+
+    if(rooms[roomIndex].isReserved) {
+        printError("Room is already reserved");
+        return;
+    }
+
+    printf("Enter your name: ");
+    if (fgets(input, MAX_NAME, stdin) == NULL) {
+        printError("Failed to read name");
+        return;
+    }
+    input[strcspn(input, "\n")] = 0;
+
+    if (!validateName(input)) {
+        printError("Invalid name format (use only letters and spaces)");
+        return;
+    }
+
+    rooms[roomIndex].isReserved = 1;
+    strncpy(rooms[roomIndex].reservedBy, input, MAX_NAME - 1);
+    rooms[roomIndex].reservedBy[MAX_NAME - 1] = '\0';
+    printSuccess("Reservation successful!");
+}
+
+void cancelReservation(struct Room rooms[], int numRooms) {
+    char input[MAX_NAME];
+    int roomNum;
+    
+    viewRooms(rooms, numRooms);
+    printf("\nEnter room number to cancel: ");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        printError("Failed to read input");
+        return;
+    }
+    input[strcspn(input, "\n")] = 0;
+    
+    if (!validateNumber(input)) {
+        printError("Please enter a valid number");
+        return;
+    }
+    
+    roomNum = atoi(input);
+    
+    int roomIndex = -1;
+    for (int i = 0; i < numRooms; i++) {
+        if (rooms[i].number == roomNum) {
+            roomIndex = i;
+            break;
+        }
+    }
+    
+    if (roomIndex == -1) {
+        printError("Room number not found");
+        return;
+    }
+
+    if(!rooms[roomIndex].isReserved) {
+        printError("Room is not reserved");
+        return;
+    }
+
+    rooms[roomIndex].isReserved = 0;
+    memset(rooms[roomIndex].reservedBy, 0, MAX_NAME);
+    printSuccess("Reservation cancelled successfully!");
+}
+
+void saveToFile(struct Room rooms[], int numRooms) {
+    FILE *file = fopen(DATA_FILE, "w");
+    if (file == NULL) {
+        printError("Could not open file for writing!");
+        return;
+    }
+
+    fprintf(file, "Number of rooms: %d\n", numRooms);
+    fprintf(file, "Room Number | Reserved | Reserved By\n");
+    fprintf(file, "-----------------------------------\n");
+
+    for (int i = 0; i < numRooms; i++) {
+        fprintf(file, "%-11d | %-8s | %s\n", 
+                rooms[i].number,
+                rooms[i].isReserved ? "Yes" : "No",
+                rooms[i].isReserved ? rooms[i].reservedBy : "-");
+    }
+    fclose(file);
+}
+
+void loadFromFile(struct Room rooms[], int *numRooms) {
+    FILE *file = fopen(DATA_FILE, "r");
+    if (file == NULL) {
+        *numRooms = 0;
+        return;
+    }
+
+    char line[MAX_NAME + 50];
+    if (fgets(line, sizeof(line), file) == NULL || 
+        sscanf(line, "Number of rooms: %d", numRooms) != 1) {
+        *numRooms = 0;
+        fclose(file);
+        return;
+    }
+    
+    fgets(line, sizeof(line), file);
+    fgets(line, sizeof(line), file);
+
+    for (int i = 0; i < *numRooms && i < MAX_ROOMS; i++) {
+        char reservedStatus[10];
+        
+        if (fgets(line, sizeof(line), file) == NULL) break;
+        
+        if (sscanf(line, "%d | %s | %[^\n]", 
+               &rooms[i].number,
+               reservedStatus,
+               rooms[i].reservedBy) < 2) {
+            continue;
+        }
+        
+        rooms[i].isReserved = (strcmp(reservedStatus, "Yes") == 0) ? 1 : 0;
+        
+        if (!rooms[i].isReserved || strcmp(rooms[i].reservedBy, "-") == 0) {
+            rooms[i].isReserved = 0;
+            memset(rooms[i].reservedBy, 0, MAX_NAME);
+        }
+    }
+    fclose(file);
+    
+    sortRooms(rooms, *numRooms);
+}
+
+void addNewRoom(struct Room rooms[], int *numRooms) {
+    if (*numRooms >= MAX_ROOMS) {
+        printError("Cannot add more rooms. Maximum limit reached!");
+        return;
+    }
+
+    char input[MAX_NAME];
+    int newRoomNum;
+
+    printf("Enter room number (e.g., 101, 102, etc.): ");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        printError("Failed to read input");
+        return;
+    }
+    input[strcspn(input, "\n")] = 0;
+    
+    if (!validateNumber(input)) {
+        printError("Please enter a valid number");
+        return;
+    }
+    
+    newRoomNum = atoi(input);
+
+    // Check if room number already exists
+    for (int i = 0; i < *numRooms; i++) {
+        if (rooms[i].number == newRoomNum) {
+            printError("Room number already exists!");
+            return;
+        }
+    }
+    
+    // Add the new room
+    rooms[*numRooms].number = newRoomNum;
+    rooms[*numRooms].isReserved = 0;
+    memset(rooms[*numRooms].reservedBy, 0, MAX_NAME);
+    (*numRooms)++;
+    
+    // Sort rooms to maintain order
+    sortRooms(rooms, *numRooms);
+    
+    printSuccess("Added new room successfully!");
+    saveToFile(rooms, *numRooms);
+}
+
+int main() {
+    struct Room rooms[MAX_ROOMS];
+    int numRooms = 0;
+    char input[MAX_NAME];
+    int choice;
+    
+    loadFromFile(rooms, &numRooms);
+    if (numRooms == 0) {
+        int initialRooms[] = {101, 102, 103, 104, 201};
+        numRooms = 5;
+        
+        for(int i = 0; i < numRooms; i++) {
+            rooms[i].number = initialRooms[i];
+            rooms[i].isReserved = (i == 1 || i == 3); // Make rooms 102 and 201 reserved
+            memset(rooms[i].reservedBy, 0, MAX_NAME);
+            
+            if(rooms[i].isReserved) {
+                strncpy(rooms[i].reservedBy, 
+                       (i == 1) ? "Andrei Papuc" : "Ilie Brancea",
+                       MAX_NAME - 1);
+            }
+        }
+        
+        saveToFile(rooms, numRooms);
+        printSuccess("Initialized with 5 rooms.");
+    }
+
+    do {
+        showMainMenu();
+        if (fgets(input, sizeof(input), stdin) == NULL) {
+            printError("Failed to read input");
+            continue;
+        }
+        input[strcspn(input, "\n")] = 0;
+
+        if (!validateNumber(input)) {
+            printError("Please enter a valid number");
+            continue;
+        }
+
+        choice = atoi(input);
+        clearScreen();
+
+        switch(choice) {
+            case 1:
+                printHeader("Available Rooms");
+                viewRooms(rooms, numRooms);
+                break;
+            case 2:
+                printHeader("Make a Reservation");
+                makeReservation(rooms, numRooms);
+                saveToFile(rooms, numRooms);
+                break;
+            case 3:
+                printHeader("Cancel a Reservation");
+                cancelReservation(rooms, numRooms);
+                saveToFile(rooms, numRooms);
+                break;
+            case 4:
+                printHeader("Add New Room");
+                addNewRoom(rooms, &numRooms);
+                break;
+            case 5:
+                printSuccess("Saving data and exiting. Goodbye!");
+                saveToFile(rooms, numRooms);
+                break;
+            default:
+                printError("Invalid choice. Please enter a number between 1 and 5.");
+        }
+
+        if(choice != 5) {
+            printf("\nPress Enter to continue...");
+            getchar();
+            clearScreen();
+        }
+    } while(choice != 5);
+
+    return 0;
+}
