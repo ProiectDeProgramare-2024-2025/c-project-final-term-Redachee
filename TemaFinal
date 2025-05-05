@@ -1,24 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define MAGENTA "\x1b[35m"
-#define CYAN    "\x1b[36m"
-#define RESET   "\x1b[0m"
 
 #define MAX_ROOMS 10
 #define MAX_NAME 50
+#define MAX_FACILITIES 100
 #define DATA_FILE "rooms_data.txt"
+#define COLOR_RESET   "\x1b[0m"
+#define COLOR_RED     "\x1b[31m"
+#define COLOR_GREEN   "\x1b[32m"
+#define COLOR_YELLOW  "\x1b[33m"
+#define COLOR_BLUE    "\x1b[34m"
+#define COLOR_MAGENTA "\x1b[35m"
+#define COLOR_CYAN    "\x1b[36m"
+#define COLOR_WHITE   "\x1b[37m"
+#define COLOR_BOLD    "\x1b[1m"
 
 struct Room {
     int number;
     int isReserved;
     char reservedBy[MAX_NAME];
+    char facilities[MAX_FACILITIES];
+    float pricePerDay;
 };
 
 void clearScreen();
@@ -30,33 +33,37 @@ void addNewRoom(struct Room rooms[], int *numRooms);
 void saveToFile(struct Room rooms[], int numRooms);
 void loadFromFile(struct Room rooms[], int *numRooms);
 void clearInputBuffer();
-int validateNumber(const char *input);
-int validateName(const char *name);
-void printError(const char *message);
-void printSuccess(const char *message);
-void printInfo(const char *message);
-void printHeader(const char *message);
 void sortRooms(struct Room rooms[], int numRooms);
+void searchRoomsByFacility(struct Room rooms[], int numRooms);
 
-int validateNumber(const char *input) {
-    for(int i = 0; input[i] != '\0'; i++) {
-        if(!isdigit(input[i])) return 0;
-    }
-    return 1;
+void clearInputBuffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
 }
 
-int validateName(const char *name) {
-    if(strlen(name) == 0) return 0;
-    for(int i = 0; name[i] != '\0'; i++) {
-        if(!isalpha(name[i]) && !isspace(name[i])) return 0;
-    }
-    return 1;
+void clearScreen() {
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+void showMainMenu() {
+    printf(COLOR_BOLD COLOR_CYAN "\n=== Hotel Reservation System ===\n" COLOR_RESET);
+    printf(COLOR_YELLOW "1. View available rooms\n" COLOR_RESET);
+    printf(COLOR_YELLOW "2. Make a reservation\n" COLOR_RESET);
+    printf(COLOR_YELLOW "3. Cancel a reservation\n" COLOR_RESET);
+    printf(COLOR_YELLOW "4. Add new room\n" COLOR_RESET);
+    printf(COLOR_YELLOW "5. Search rooms by facility\n" COLOR_RESET);
+    printf(COLOR_YELLOW "6. Exit\n" COLOR_RESET);
+    printf("\nEnter your choice (1-6): ");
 }
 
 void sortRooms(struct Room rooms[], int numRooms) {
-    for(int i = 0; i < numRooms - 1; i++) {
-        for(int j = 0; j < numRooms - i - 1; j++) {
-            if(rooms[j].number > rooms[j + 1].number) {
+    for (int i = 0; i < numRooms - 1; i++) {
+        for (int j = 0; j < numRooms - i - 1; j++) {
+            if (rooms[j].number > rooms[j + 1].number) {
                 struct Room temp = rooms[j];
                 rooms[j] = rooms[j + 1];
                 rooms[j + 1] = temp;
@@ -65,83 +72,41 @@ void sortRooms(struct Room rooms[], int numRooms) {
     }
 }
 
-void printError(const char *message) {
-    printf(RED "Error: %s" RESET "\n", message);
-}
-
-void printSuccess(const char *message) {
-    printf(GREEN "%s" RESET "\n", message);
-}
-
-void printInfo(const char *message) {
-    printf(CYAN "%s" RESET "\n", message);
-}
-
-void printHeader(const char *message) {
-    printf(YELLOW "\n=== %s ===" RESET "\n", message);
-}
-
-void clearInputBuffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
-void clearScreen() {
-    #ifdef _WIN32
-        system("cls");
-    #else
-        system("clear");
-    #endif
-}
-
-void showMainMenu() {
-    printHeader("Hotel Reservation System");
-    printf(CYAN "1. View available rooms\n");
-    printf("2. Make a reservation\n");
-    printf("3. Cancel a reservation\n");
-    printf("4. Add new room\n");
-    printf("5. Exit\n" RESET);
-    printf("\nEnter your choice (1-5): ");
-}
-
 void viewRooms(struct Room rooms[], int numRooms) {
     if (numRooms == 0) {
-        printInfo("No rooms available in the system.");
+        printf(COLOR_RED "No rooms available in the system.\n" COLOR_RESET);
         return;
     }
 
-    printHeader("Room Status");
-    printf("----------------------------------------\n");
-    for(int i = 0; i < numRooms; i++) {
-        printf("Room %d: ", rooms[i].number);
-        if(rooms[i].isReserved) {
-            printf(RED "Reserved by %s\n" RESET, rooms[i].reservedBy);
-        } else {
-            printf(GREEN "Available\n" RESET);
-        }
+    printf(COLOR_BOLD COLOR_CYAN "\nRoom Status:\n" COLOR_RESET);
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
+    printf(COLOR_MAGENTA "Room Number | Status    | Reserved By | Facilities                  | Price/Day\n" COLOR_RESET);
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
+    for (int i = 0; i < numRooms; i++) {
+        printf("%-11d | %-9s | %-11s | %-26s | %.2f\n",
+            rooms[i].number,
+            rooms[i].isReserved ? COLOR_RED "Reserved" COLOR_RESET : COLOR_GREEN "Available" COLOR_RESET,
+            rooms[i].isReserved ? rooms[i].reservedBy : "-",
+            rooms[i].facilities,
+            rooms[i].pricePerDay);
     }
-    printf("----------------------------------------\n");
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
 }
 
 void makeReservation(struct Room rooms[], int numRooms) {
-    char input[MAX_NAME];
     int roomNum;
+    char name[MAX_NAME];
+    int days;
 
     viewRooms(rooms, numRooms);
-    printf("\nEnter room number: ");
-    if (fgets(input, sizeof(input), stdin) == NULL) {
-        printError("Failed to read input");
+    printf(COLOR_YELLOW "\nEnter room number (e.g., 101, 102): " COLOR_RESET);
+    if (scanf("%d", &roomNum) != 1) {
+        printf(COLOR_RED "Invalid input! Please enter a valid room number.\n" COLOR_RESET);
+        clearInputBuffer();
         return;
     }
-    input[strcspn(input, "\n")] = 0;
-    
-    if (!validateNumber(input)) {
-        printError("Please enter a valid number");
-        return;
-    }
-    
-    roomNum = atoi(input);
-    
+    clearInputBuffer();
+
     int roomIndex = -1;
     for (int i = 0; i < numRooms; i++) {
         if (rooms[i].number == roomNum) {
@@ -149,54 +114,58 @@ void makeReservation(struct Room rooms[], int numRooms) {
             break;
         }
     }
-    
+
     if (roomIndex == -1) {
-        printError("Room number not found");
+        printf(COLOR_RED "Room number %d does not exist!\n" COLOR_RESET, roomNum);
         return;
     }
 
-    if(rooms[roomIndex].isReserved) {
-        printError("Room is already reserved");
+    if (rooms[roomIndex].isReserved) {
+        printf(COLOR_RED "Room %d is already reserved!\n" COLOR_RESET, roomNum);
         return;
     }
 
-    printf("Enter your name: ");
-    if (fgets(input, MAX_NAME, stdin) == NULL) {
-        printError("Failed to read name");
+    printf(COLOR_YELLOW "Enter your name: " COLOR_RESET);
+    if (fgets(name, MAX_NAME, stdin) == NULL) {
+        printf(COLOR_RED "Error reading name!\n" COLOR_RESET);
         return;
     }
-    input[strcspn(input, "\n")] = 0;
+    name[strcspn(name, "\n")] = 0;
 
-    if (!validateName(input)) {
-        printError("Invalid name format (use only letters and spaces)");
+    if (strlen(name) == 0) {
+        printf(COLOR_RED "Name cannot be empty!\n" COLOR_RESET);
         return;
     }
+
+    printf(COLOR_YELLOW "Enter number of days for reservation: " COLOR_RESET);
+    if (scanf("%d", &days) != 1 || days <= 0) {
+        printf(COLOR_RED "Invalid input! Please enter a valid number of days.\n" COLOR_RESET);
+        clearInputBuffer();
+        return;
+    }
+    clearInputBuffer();
+
+    float totalPrice = rooms[roomIndex].pricePerDay * days;
+    printf(COLOR_GREEN "Total price for %d days: %.2f\n" COLOR_RESET, days, totalPrice);
 
     rooms[roomIndex].isReserved = 1;
-    strncpy(rooms[roomIndex].reservedBy, input, MAX_NAME - 1);
+    strncpy(rooms[roomIndex].reservedBy, name, MAX_NAME - 1);
     rooms[roomIndex].reservedBy[MAX_NAME - 1] = '\0';
-    printSuccess("Reservation successful!");
+    printf(COLOR_GREEN "Reservation successful for room %d!\n" COLOR_RESET, roomNum);
 }
 
 void cancelReservation(struct Room rooms[], int numRooms) {
-    char input[MAX_NAME];
     int roomNum;
-    
+
     viewRooms(rooms, numRooms);
-    printf("\nEnter room number to cancel: ");
-    if (fgets(input, sizeof(input), stdin) == NULL) {
-        printError("Failed to read input");
+    printf(COLOR_YELLOW "\nEnter room number to cancel (e.g., 101, 102): " COLOR_RESET);
+    if (scanf("%d", &roomNum) != 1) {
+        printf(COLOR_RED "Invalid input! Please enter a valid room number.\n" COLOR_RESET);
+        clearInputBuffer();
         return;
     }
-    input[strcspn(input, "\n")] = 0;
-    
-    if (!validateNumber(input)) {
-        printError("Please enter a valid number");
-        return;
-    }
-    
-    roomNum = atoi(input);
-    
+    clearInputBuffer();
+
     int roomIndex = -1;
     for (int i = 0; i < numRooms; i++) {
         if (rooms[i].number == roomNum) {
@@ -204,38 +173,40 @@ void cancelReservation(struct Room rooms[], int numRooms) {
             break;
         }
     }
-    
+
     if (roomIndex == -1) {
-        printError("Room number not found");
+        printf(COLOR_RED "Room number %d does not exist!\n" COLOR_RESET, roomNum);
         return;
     }
 
-    if(!rooms[roomIndex].isReserved) {
-        printError("Room is not reserved");
+    if (!rooms[roomIndex].isReserved) {
+        printf(COLOR_RED "Room %d is not reserved!\n" COLOR_RESET, roomNum);
         return;
     }
 
     rooms[roomIndex].isReserved = 0;
     memset(rooms[roomIndex].reservedBy, 0, MAX_NAME);
-    printSuccess("Reservation cancelled successfully!");
+    printf(COLOR_GREEN "Reservation cancelled successfully for room %d!\n" COLOR_RESET, roomNum);
 }
 
 void saveToFile(struct Room rooms[], int numRooms) {
     FILE *file = fopen(DATA_FILE, "w");
     if (file == NULL) {
-        printError("Could not open file for writing!");
+        printf(COLOR_RED "Error: Could not open file for writing!\n" COLOR_RESET);
         return;
     }
 
     fprintf(file, "Number of rooms: %d\n", numRooms);
-    fprintf(file, "Room Number | Reserved | Reserved By\n");
-    fprintf(file, "-----------------------------------\n");
+    fprintf(file, "Room Number | Reserved | Reserved By | Facilities | Price Per Day\n");
+    fprintf(file, "---------------------------------------------------------------\n");
 
     for (int i = 0; i < numRooms; i++) {
-        fprintf(file, "%-11d | %-8s | %s\n", 
-                rooms[i].number,
-                rooms[i].isReserved ? "Yes" : "No",
-                rooms[i].isReserved ? rooms[i].reservedBy : "-");
+        fprintf(file, "%-11d | %-8s | %-11s | %-26s | %.2f\n",
+            rooms[i].number,
+            rooms[i].isReserved ? "Yes" : "No",
+            rooms[i].isReserved ? rooms[i].reservedBy : "-",
+            rooms[i].facilities,
+            rooms[i].pricePerDay);
     }
     fclose(file);
 }
@@ -247,161 +218,218 @@ void loadFromFile(struct Room rooms[], int *numRooms) {
         return;
     }
 
-    char line[MAX_NAME + 50];
-    if (fgets(line, sizeof(line), file) == NULL || 
+    char line[MAX_NAME + MAX_FACILITIES + 100];
+    if (fgets(line, sizeof(line), file) == NULL ||
         sscanf(line, "Number of rooms: %d", numRooms) != 1) {
         *numRooms = 0;
         fclose(file);
         return;
     }
-    
-    fgets(line, sizeof(line), file);
+
+    fgets(line, sizeof(line), file);  // Skip header lines
     fgets(line, sizeof(line), file);
 
     for (int i = 0; i < *numRooms && i < MAX_ROOMS; i++) {
         char reservedStatus[10];
-        
+        char reservedBy[MAX_NAME];
+        char facilities[MAX_FACILITIES];
+        float pricePerDay = 0.0f;
         if (fgets(line, sizeof(line), file) == NULL) break;
-        
-        if (sscanf(line, "%d | %s | %[^\n]", 
-               &rooms[i].number,
-               reservedStatus,
-               rooms[i].reservedBy) < 2) {
-            continue;
-        }
-        
+        int fields = sscanf(line, "%d | %s | %[^|]| %[^|]| %f",
+            &rooms[i].number,
+            reservedStatus,
+            reservedBy,
+            facilities,
+            &pricePerDay);
+        if (fields < 4) continue;
         rooms[i].isReserved = (strcmp(reservedStatus, "Yes") == 0) ? 1 : 0;
-        
-        if (!rooms[i].isReserved || strcmp(rooms[i].reservedBy, "-") == 0) {
+        if (rooms[i].isReserved && strcmp(reservedBy, "-") != 0) {
+            strncpy(rooms[i].reservedBy, reservedBy, MAX_NAME - 1);
+            rooms[i].reservedBy[MAX_NAME - 1] = '\0';
+        } else {
             rooms[i].isReserved = 0;
             memset(rooms[i].reservedBy, 0, MAX_NAME);
         }
+        strncpy(rooms[i].facilities, facilities, MAX_FACILITIES - 1);
+        rooms[i].facilities[MAX_FACILITIES - 1] = '\0';
+        rooms[i].pricePerDay = pricePerDay;
     }
     fclose(file);
-    
     sortRooms(rooms, *numRooms);
 }
 
 void addNewRoom(struct Room rooms[], int *numRooms) {
     if (*numRooms >= MAX_ROOMS) {
-        printError("Cannot add more rooms. Maximum limit reached!");
+        printf(COLOR_RED "Cannot add more rooms. Maximum limit (%d) reached!\n" COLOR_RESET, MAX_ROOMS);
         return;
     }
 
-    char input[MAX_NAME];
     int newRoomNum;
-
-    printf("Enter room number (e.g., 101, 102, etc.): ");
-    if (fgets(input, sizeof(input), stdin) == NULL) {
-        printError("Failed to read input");
+    char facilities[MAX_FACILITIES];
+    float pricePerDay;
+    printf(COLOR_YELLOW "Enter room number (e.g., 101, 102): " COLOR_RESET);
+    if (scanf("%d", &newRoomNum) != 1) {
+        printf(COLOR_RED "Invalid input! Please enter a valid room number.\n" COLOR_RESET);
+        clearInputBuffer();
         return;
     }
-    input[strcspn(input, "\n")] = 0;
-    
-    if (!validateNumber(input)) {
-        printError("Please enter a valid number");
-        return;
-    }
-    
-    newRoomNum = atoi(input);
+    clearInputBuffer();
 
-    // Check if room number already exists
     for (int i = 0; i < *numRooms; i++) {
         if (rooms[i].number == newRoomNum) {
-            printError("Room number already exists!");
+            printf(COLOR_RED "Room number %d already exists!\n" COLOR_RESET, newRoomNum);
             return;
         }
     }
-    
-    // Add the new room
+
+    printf(COLOR_YELLOW "Enter facilities (comma separated, e.g., TV, WiFi, Personal Bathroom): " COLOR_RESET);
+    if (fgets(facilities, MAX_FACILITIES, stdin) == NULL) {
+        printf(COLOR_RED "Error reading facilities!\n" COLOR_RESET);
+        return;
+    }
+    facilities[strcspn(facilities, "\n")] = 0;
+
+    printf(COLOR_YELLOW "Enter price per day: " COLOR_RESET);
+    if (scanf("%f", &pricePerDay) != 1 || pricePerDay < 0) {
+        printf(COLOR_RED "Invalid input! Please enter a valid price.\n" COLOR_RESET);
+        clearInputBuffer();
+        return;
+    }
+    clearInputBuffer();
+
     rooms[*numRooms].number = newRoomNum;
     rooms[*numRooms].isReserved = 0;
     memset(rooms[*numRooms].reservedBy, 0, MAX_NAME);
+    strncpy(rooms[*numRooms].facilities, facilities, MAX_FACILITIES - 1);
+    rooms[*numRooms].facilities[MAX_FACILITIES - 1] = '\0';
+    rooms[*numRooms].pricePerDay = pricePerDay;
+
     (*numRooms)++;
-    
-    // Sort rooms to maintain order
     sortRooms(rooms, *numRooms);
-    
-    printSuccess("Added new room successfully!");
+    printf(COLOR_GREEN "Added new room with number: %d\n" COLOR_RESET, newRoomNum);
     saveToFile(rooms, *numRooms);
+}
+
+void searchRoomsByFacility(struct Room rooms[], int numRooms) {
+    char searchFacility[MAX_FACILITIES];
+    printf(COLOR_YELLOW "Enter facility to search for (e.g., WiFi): " COLOR_RESET);
+    if (fgets(searchFacility, MAX_FACILITIES, stdin) == NULL) {
+        printf(COLOR_RED "Error reading facility!\n" COLOR_RESET);
+        return;
+    }
+    searchFacility[strcspn(searchFacility, "\n")] = 0;
+    if (strlen(searchFacility) == 0) {
+        printf(COLOR_RED "Facility cannot be empty!\n" COLOR_RESET);
+        return;
+    }
+    printf(COLOR_BOLD COLOR_CYAN "\nRooms with facility '%s':\n" COLOR_RESET, searchFacility);
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
+    printf(COLOR_MAGENTA "Room Number | Status    | Reserved By | Facilities                  | Price/Day\n" COLOR_RESET);
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
+    int found = 0;
+    for (int i = 0; i < numRooms; i++) {
+        if (strstr(rooms[i].facilities, searchFacility) != NULL) {
+            printf("%-11d | %-9s | %-11s | %-26s | %.2f\n",
+                rooms[i].number,
+                rooms[i].isReserved ? COLOR_RED "Reserved" COLOR_RESET : COLOR_GREEN "Available" COLOR_RESET,
+                rooms[i].isReserved ? rooms[i].reservedBy : "-",
+                rooms[i].facilities,
+                rooms[i].pricePerDay);
+            found = 1;
+        }
+    }
+    if (!found) {
+        printf(COLOR_RED "No rooms found with the facility '%s'.\n" COLOR_RESET, searchFacility);
+    }
+    printf(COLOR_MAGENTA "--------------------------------------------------------------------------------\n" COLOR_RESET);
 }
 
 int main() {
     struct Room rooms[MAX_ROOMS];
     int numRooms = 0;
-    char input[MAX_NAME];
     int choice;
-    
+
     loadFromFile(rooms, &numRooms);
     if (numRooms == 0) {
-        int initialRooms[] = {101, 102, 103, 104, 201};
-        numRooms = 5;
-        
-        for(int i = 0; i < numRooms; i++) {
-            rooms[i].number = initialRooms[i];
-            rooms[i].isReserved = (i == 1 || i == 3); // Make rooms 102 and 201 reserved
-            memset(rooms[i].reservedBy, 0, MAX_NAME);
-            
-            if(rooms[i].isReserved) {
-                strncpy(rooms[i].reservedBy, 
-                       (i == 1) ? "Andrei Papuc" : "Ilie Brancea",
-                       MAX_NAME - 1);
+        int defaultRooms[] = {101, 102, 103, 201, 202};
+        char* defaultReservations[] = {"", "John Doe", "", "Jane Smith", ""};
+        int defaultReserved[] = {0, 1, 0, 1, 0};
+        char* defaultFacilities[] = {
+            "TV, WiFi, Personal Bathroom",
+            "WiFi, Personal Bathroom",
+            "TV, Air Conditioning",
+            "WiFi, TV, Mini Bar",
+            "Personal Bathroom, Mini Bar, WiFi"
+        };
+        float defaultPrices[] = {100.0, 120.0, 90.0, 150.0, 110.0};
+
+        numRooms = sizeof(defaultRooms) / sizeof(defaultRooms[0]);
+        for (int i = 0; i < numRooms; i++) {
+            rooms[i].number = defaultRooms[i];
+            rooms[i].isReserved = defaultReserved[i];
+            strncpy(rooms[i].facilities, defaultFacilities[i], MAX_FACILITIES - 1);
+            rooms[i].facilities[MAX_FACILITIES - 1] = '\0';
+            rooms[i].pricePerDay = defaultPrices[i];
+            if (defaultReserved[i]) {
+                strncpy(rooms[i].reservedBy, defaultReservations[i], MAX_NAME - 1);
+                rooms[i].reservedBy[MAX_NAME - 1] = '\0';
+            } else {
+                memset(rooms[i].reservedBy, 0, MAX_NAME);
             }
         }
-        
+
+        sortRooms(rooms, numRooms);
         saveToFile(rooms, numRooms);
-        printSuccess("Initialized with 5 rooms.");
+        printf(COLOR_GREEN "Initialized with %d rooms.\n" COLOR_RESET, numRooms);
     }
 
     do {
         showMainMenu();
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            printError("Failed to read input");
+        if (scanf("%d", &choice) != 1) {
+            printf(COLOR_RED "Invalid input! Please enter a number.\n" COLOR_RESET);
+            clearInputBuffer();
             continue;
         }
-        input[strcspn(input, "\n")] = 0;
-
-        if (!validateNumber(input)) {
-            printError("Please enter a valid number");
-            continue;
-        }
-
-        choice = atoi(input);
+        clearInputBuffer();
         clearScreen();
 
-        switch(choice) {
+        switch (choice) {
             case 1:
-                printHeader("Available Rooms");
+                printf(COLOR_BOLD COLOR_CYAN "\n=== Available Rooms ===\n" COLOR_RESET);
                 viewRooms(rooms, numRooms);
                 break;
             case 2:
-                printHeader("Make a Reservation");
+                printf(COLOR_BOLD COLOR_CYAN "\n=== Make a Reservation ===\n" COLOR_RESET);
                 makeReservation(rooms, numRooms);
                 saveToFile(rooms, numRooms);
                 break;
             case 3:
-                printHeader("Cancel a Reservation");
+                printf(COLOR_BOLD COLOR_CYAN "\n=== Cancel a Reservation ===\n" COLOR_RESET);
                 cancelReservation(rooms, numRooms);
                 saveToFile(rooms, numRooms);
                 break;
             case 4:
-                printHeader("Add New Room");
+                printf(COLOR_BOLD COLOR_CYAN "\n=== Add New Room ===\n" COLOR_RESET);
                 addNewRoom(rooms, &numRooms);
                 break;
             case 5:
-                printSuccess("Saving data and exiting. Goodbye!");
+                printf(COLOR_BOLD COLOR_CYAN "\n=== Search Rooms by Facility ===\n" COLOR_RESET);
+                searchRoomsByFacility(rooms, numRooms);
+                break;
+            case 6:
+                printf(COLOR_GREEN "Saving data and exiting. Goodbye!\n" COLOR_RESET);
                 saveToFile(rooms, numRooms);
                 break;
             default:
-                printError("Invalid choice. Please enter a number between 1 and 5.");
+                printf(COLOR_RED "Invalid choice. Please enter a number between 1 and 6.\n" COLOR_RESET);
         }
 
-        if(choice != 5) {
-            printf("\nPress Enter to continue...");
+        if (choice != 6) {
+            printf(COLOR_YELLOW "\nPress Enter to continue..." COLOR_RESET);
             getchar();
             clearScreen();
         }
-    } while(choice != 5);
+    } while (choice != 6);
 
     return 0;
 }
